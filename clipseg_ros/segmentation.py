@@ -148,7 +148,6 @@ class Segmentation(rclpy.node.Node):
     def run_segmentation(
         self, source_image: npt.NDArray[np.uint8], header: std_msgs.msg.Header
     ):
-        start_time = time.time_ns()
         inputs = self.clipseg_processor(
             text=self.class_prompts,
             images=[torch.from_numpy(source_image).to(self.device).to(torch.uint8)]
@@ -184,9 +183,7 @@ class Segmentation(rclpy.node.Node):
         labels = torch.zeros_like(max_indices, device=self.device)
         valid_mask = max_scores != -torch.inf
         labels[valid_mask] = max_indices[valid_mask] + 1
-        self.get_logger().info(
-            f"Segmentation completed in {(time.time_ns() - start_time) / 1e6:.2f} ms"
-        )
+
         labels = labels.cpu().numpy()
 
         label_image_msg = self.cv_bridge.cv2_to_imgmsg(
