@@ -1,5 +1,6 @@
 import ast
 import copy
+import math
 import threading
 import time
 
@@ -59,6 +60,11 @@ class Segmentation(rclpy.node.Node):
             self.declare_parameter("score_threshold", 0.5)
             .get_parameter_value()
             .double_value
+        )
+        self.enable_image_splitting = (
+            self.declare_parameter("enable_image_splitting", True)
+            .get_parameter_value()
+            .bool_value
         )
         self.use_compressed_image = (
             self.declare_parameter("use_compressed_image", True)
@@ -154,53 +160,109 @@ class Segmentation(rclpy.node.Node):
     def run_segmentation(
         self, source_image: npt.NDArray[np.uint8], header: std_msgs.msg.Header
     ):
-        inputs = self.clipseg_processor(
-            text=self.class_prompts,
-            images=[torch.from_numpy(source_image).to(self.device).to(torch.uint8)]
-            * len(self.class_prompts),
-            return_tensors="pt",
-            padding=True,
-            truncation=True,
-        ).to(self.device)
-
-        with torch.no_grad():
-            outputs: (
-                transformers.models.clipseg.modeling_clipseg.CLIPSegImageSegmentationOutput
-            ) = self.clipseg_model(**inputs)
-        scores = outputs.logits.unsqueeze(1)
-
-        scores: torch.Tensor = torch.nn.functional.interpolate(
-            scores,
-            size=source_image.shape[:2],
-            mode="bilinear",
-            align_corners=True,
-        )
-        scores = scores.squeeze(1)
-
-        scores_masked = torch.where(
-            scores >= self.score_threshold,
-            scores,
-            torch.tensor(-torch.inf, device=self.device),
+        start_time = time.time_ns()
+        origins, input_images = (
+            self.split_image_into_squares(source_image)
+            if self.enable_image_splitting
+            else ([(0, 0)], [source_image])
         )
 
-        max_scores, max_indices = torch.max(scores_masked, dim=0)
-        max_indices = max_indices.to(torch.uint8)
+        label_image = np.zeros((*source_image.shape[:2], 2), dtype=np.uint8)
 
-        labels = torch.zeros_like(max_indices, device=self.device)
-        valid_mask = max_scores != -torch.inf
-        labels[valid_mask] = max_indices[valid_mask] + 1
+        for origin, input_image in zip(origins, input_images):
+            inputs = self.clipseg_processor(
+                text=self.class_prompts,
+                images=[input_image] * len(self.class_prompts),
+                return_tensors="pt",
+                padding=True,
+                truncation=True,
+            ).to(self.device)
 
-        labels = labels.cpu().numpy()
+            with torch.no_grad():
+                outputs: (
+                    transformers.models.clipseg.modeling_clipseg.CLIPSegImageSegmentationOutput
+                ) = self.clipseg_model(**inputs)
+            scores = outputs.logits.unsqueeze(1)
 
+            scores: torch.Tensor = torch.nn.functional.interpolate(
+                scores,
+                size=input_image.shape[:2],
+                mode="bilinear",
+                align_corners=True,
+            )
+            scores = scores.squeeze(1).cpu().numpy().transpose(1, 2, 0)
+
+            scores_masked = np.where(
+                scores >= self.score_threshold,
+                scores,
+                -np.inf,
+            )
+
+            max_scores = np.max(scores_masked, axis=2)
+            max_labels = np.argmax(scores_masked, axis=2)
+
+            update_mask = (
+                label_image[
+                    origin[0] : origin[0] + input_image.shape[0],
+                    origin[1] : origin[1] + input_image.shape[1],
+                    0,
+                ]
+                < max_scores
+            )
+
+            label_image[
+                origin[0] : origin[0] + input_image.shape[0],
+                origin[1] : origin[1] + input_image.shape[1],
+                0,
+            ][update_mask] = max_scores[update_mask]
+            label_image[
+                origin[0] : origin[0] + input_image.shape[0],
+                origin[1] : origin[1] + input_image.shape[1],
+                1,
+            ][update_mask] = max_labels[update_mask]
+
+        label_image = label_image[:, :, 1]
+
+        self.get_logger().info(
+            f"Segmentation took {(time.time_ns() - start_time) / 1e6:.2f} ms"
+        )
         label_image_msg = self.cv_bridge.cv2_to_imgmsg(
-            labels,
+            label_image,
             encoding="8UC1",
             header=header,
         )
         self.label_image_pub.publish(label_image_msg)
 
         with self.result_lock:
-            self.result = Segmentation.Result(labels, source_image)
+            self.result = Segmentation.Result(label_image, source_image)
+
+    def split_image_into_squares(
+        self, image: npt.NDArray[np.uint8]
+    ) -> tuple[list[tuple[int, int]], list[npt.NDArray[np.uint8]]]:
+        height, width = image.shape[:2]
+        if height == width:
+            return [(0, 0)], [image]
+
+        square_size = min(height, width)
+        origins = []
+        squares = []
+
+        if width > height:
+            num_squares = math.ceil(width / square_size)
+            for i in range(num_squares):
+                x = i * (width - square_size) // (num_squares - 1)
+                segment = image[:, x : x + square_size]
+                origins.append((0, x))
+                squares.append(segment)
+        else:
+            num_squares = math.ceil(height / square_size)
+            for i in range(num_squares):
+                y = i * (height - square_size) // (num_squares - 1)
+                segment = image[y : y + square_size, :]
+                origins.append((y, 0))
+                squares.append(segment)
+
+        return origins, squares
 
 
 def main(args=None):
