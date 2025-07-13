@@ -115,12 +115,18 @@ class Segmentation(rclpy.node.Node):
         )
 
     def image_raw_compressed_callback(self, msg: sensor_msgs.msg.CompressedImage):
+        if not msg.data:
+            self.get_logger().warn("Image data is empty")
+            return
         source_image = self.cv_bridge.compressed_imgmsg_to_cv2(
             msg, desired_encoding="rgb8"
         )
         self.run_segmentation(source_image, msg.header)
 
     def image_raw_callback(self, msg: sensor_msgs.msg.Image):
+        if not msg.data:
+            self.get_logger().warn("Image data is empty")
+            return
         source_image = self.cv_bridge.imgmsg_to_cv2(msg, desired_encoding="rgb8")
         self.run_segmentation(source_image, msg.header)
 
