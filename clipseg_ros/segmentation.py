@@ -182,6 +182,10 @@ class Segmentation(rclpy.node.Node):
             self.get_logger().error(f"Parameter has invalid format: {e}")
             return
 
+        if not self.class_prompts:
+            self.get_logger().warn("No class prompts provided")
+            return
+
         start_time = time.time_ns()
 
         input_image = (
