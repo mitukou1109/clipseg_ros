@@ -165,6 +165,7 @@ class Segmentation(rclpy.node.Node):
             cv2.COLOR_RGB2BGR,
         )
 
+        cv2.namedWindow(self.get_name(), cv2.WINDOW_NORMAL)
         cv2.imshow(self.get_name(), result_image)
         cv2.waitKey(1)
 
