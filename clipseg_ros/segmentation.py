@@ -46,14 +46,10 @@ class Segmentation(rclpy.node.Node):
             .get_parameter_value()
             .string_value
         )
-        self.class_colors = np.array(
-            [[0, 0, 0]]
-            + ast.literal_eval(
-                self.declare_parameter("class_colors", "[]")
-                .get_parameter_value()
-                .string_value
-            ),
-            dtype=np.uint8,
+        self.class_colors = ast.literal_eval(
+            self.declare_parameter("class_colors", "[]")
+            .get_parameter_value()
+            .string_value
         )
         self.score_threshold = (
             self.declare_parameter("score_threshold", 0.5)
@@ -136,6 +132,20 @@ class Segmentation(rclpy.node.Node):
         self.run_segmentation(source_image, msg.header)
 
     def visualize_result_callback(self):
+        try:
+            self.class_colors = ast.literal_eval(
+                self.get_parameter("class_colors").get_parameter_value().string_value
+            )
+        except Exception as e:
+            self.get_logger().error(f"Parameter class_colors has invalid format: {e}")
+            return
+
+        if len(self.class_colors) != len(self.class_prompts):
+            self.get_logger().error(
+                "Parameter class_colors must have the same length as class_prompts"
+            )
+            return
+
         if self.result is None:
             return
 
@@ -144,7 +154,9 @@ class Segmentation(rclpy.node.Node):
 
         result_image = cv2.cvtColor(
             cv2.addWeighted(
-                src1=self.class_colors[result.labels],
+                src1=np.array([[0, 0, 0]] + self.class_colors, dtype=np.uint8)[
+                    result.labels
+                ],
                 src2=result.source_image,
                 alpha=0.5,
                 beta=1.0,
@@ -159,6 +171,17 @@ class Segmentation(rclpy.node.Node):
     def run_segmentation(
         self, source_image: npt.NDArray[np.uint8], header: std_msgs.msg.Header
     ):
+        try:
+            self.class_prompts = ast.literal_eval(
+                self.get_parameter("class_prompts").get_parameter_value().string_value
+            )
+            self.score_threshold = (
+                self.get_parameter("score_threshold").get_parameter_value().double_value
+            )
+        except Exception as e:
+            self.get_logger().error(f"Parameter has invalid format: {e}")
+            return
+
         start_time = time.time_ns()
 
         input_image = (
