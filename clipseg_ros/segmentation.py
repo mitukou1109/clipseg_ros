@@ -23,10 +23,10 @@ class Segmentation(rclpy.node.Node):
         def __init__(
             self,
             labels: npt.NDArray[np.uint8],
-            source_image: npt.NDArray[np.uint8],
+            input_image: npt.NDArray[np.uint8],
         ):
             self.labels = labels
-            self.source_image = source_image
+            self.input_image = input_image
 
     def __init__(self):
         super().__init__("segmentation")
@@ -157,7 +157,7 @@ class Segmentation(rclpy.node.Node):
                 src1=np.array([[0, 0, 0]] + self.class_colors, dtype=np.uint8)[
                     result.labels
                 ],
-                src2=result.source_image,
+                src2=result.input_image,
                 alpha=0.5,
                 beta=1.0,
                 gamma=0.0,
@@ -211,7 +211,7 @@ class Segmentation(rclpy.node.Node):
 
         scores: torch.Tensor = torch.nn.functional.interpolate(
             scores,
-            size=source_image.shape[:2],
+            size=input_image.shape[:2],
             mode="bilinear",
             align_corners=True,
         )
@@ -244,7 +244,7 @@ class Segmentation(rclpy.node.Node):
         self.label_image_pub.publish(label_image_msg)
 
         with self.result_lock:
-            self.result = Segmentation.Result(labels, source_image)
+            self.result = Segmentation.Result(labels, input_image)
 
     def pad_image_to_square(
         self, source_image: npt.NDArray[np.uint8]
