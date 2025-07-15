@@ -3,7 +3,7 @@
     use_gpu: true
     class_prompts: "['tall grass']"
     class_colors: "[[255, 0, 0]]"
-    score_threshold: 0.5
+    score_threshold: 0.1
     enable_padding: true
     use_compressed_image: true
     result_visualization_rate: 10.0
