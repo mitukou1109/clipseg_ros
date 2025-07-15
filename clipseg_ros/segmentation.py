@@ -60,6 +60,11 @@ class Segmentation(rclpy.node.Node):
             .get_parameter_value()
             .double_value
         )
+        self.enable_padding = (
+            self.declare_parameter("enable_padding", True)
+            .get_parameter_value()
+            .bool_value
+        )
         self.use_compressed_image = (
             self.declare_parameter("use_compressed_image", True)
             .get_parameter_value()
@@ -154,9 +159,16 @@ class Segmentation(rclpy.node.Node):
     def run_segmentation(
         self, source_image: npt.NDArray[np.uint8], header: std_msgs.msg.Header
     ):
+
+        input_image = (
+            self.pad_image_to_square(source_image)
+            if self.enable_padding
+            else source_image
+        )
+
         inputs = self.clipseg_processor(
             text=self.class_prompts,
-            images=[torch.from_numpy(source_image).to(self.device).to(torch.uint8)]
+            images=[torch.from_numpy(input_image).to(self.device).to(torch.uint8)]
             * len(self.class_prompts),
             return_tensors="pt",
             padding=True,
@@ -201,6 +213,25 @@ class Segmentation(rclpy.node.Node):
 
         with self.result_lock:
             self.result = Segmentation.Result(labels, source_image)
+
+    def pad_image_to_square(
+        self, source_image: npt.NDArray[np.uint8]
+    ) -> npt.NDArray[np.uint8]:
+        height, width = source_image.shape[:2]
+        target_size = max(height, width)
+
+        pad_top = (target_size - height) // 2
+        pad_bottom = target_size - height - pad_top
+        pad_left = (target_size - width) // 2
+        pad_right = target_size - width - pad_left
+
+        padded_image = np.pad(
+            source_image,
+            ((pad_top, pad_bottom), (pad_left, pad_right), (0, 0)),
+            mode="constant",
+        )
+
+        return padded_image
 
 
 def main(args=None):
