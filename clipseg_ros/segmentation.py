@@ -159,6 +159,7 @@ class Segmentation(rclpy.node.Node):
     def run_segmentation(
         self, source_image: npt.NDArray[np.uint8], header: std_msgs.msg.Header
     ):
+        start_time = time.time_ns()
 
         input_image = (
             self.pad_image_to_square(source_image)
@@ -203,6 +204,10 @@ class Segmentation(rclpy.node.Node):
         labels[valid_mask] = max_indices[valid_mask] + 1
 
         labels = labels.cpu().numpy()
+
+        self.get_logger().debug(
+            f"Segmentation took {(time.time_ns() - start_time) / 1e6:.2f} ms"
+        )
 
         label_image_msg = self.cv_bridge.cv2_to_imgmsg(
             labels,
