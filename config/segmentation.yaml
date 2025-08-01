@@ -4,6 +4,6 @@
     class_prompts: "['tall grass']"
     class_colors: "[[255, 0, 0]]"
     score_threshold: 0.1
-    enable_padding: true
+    enable_padding: false
     use_compressed_image: true
     result_visualization_rate: 10.0
