@@ -93,6 +93,11 @@ class Segmentation(rclpy.node.Node):
             "~/label_image",
             1,
         )
+        self.label_image_compressed_pub = self.create_publisher(
+            sensor_msgs.msg.CompressedImage,
+            "~/label_image/compressed",
+            1,
+        )
 
         if self.use_compressed_image:
             self.image_raw_sub = self.create_subscription(
@@ -246,6 +251,10 @@ class Segmentation(rclpy.node.Node):
             header=header,
         )
         self.label_image_pub.publish(label_image_msg)
+
+        label_image_compressed_msg = self.cv_bridge.cv2_to_compressed_imgmsg(labels)
+        label_image_compressed_msg.header = header
+        self.label_image_compressed_pub.publish(label_image_compressed_msg)
 
         with self.result_lock:
             self.result = Segmentation.Result(labels, source_image)
