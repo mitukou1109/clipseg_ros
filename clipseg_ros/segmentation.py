@@ -88,11 +88,6 @@ class Segmentation(rclpy.node.Node):
         self.result_lock = threading.Lock()
         self.result: Segmentation.Result = None
 
-        self.label_image_pub = self.create_publisher(
-            sensor_msgs.msg.Image,
-            "~/label_image",
-            1,
-        )
         self.label_image_compressed_pub = self.create_publisher(
             sensor_msgs.msg.CompressedImage,
             "~/label_image/compressed",
@@ -244,13 +239,6 @@ class Segmentation(rclpy.node.Node):
         self.get_logger().debug(
             f"Segmentation took {(time.time_ns() - start_time) / 1e6:.2f} ms"
         )
-
-        label_image_msg = self.cv_bridge.cv2_to_imgmsg(
-            labels,
-            encoding="8UC1",
-            header=header,
-        )
-        self.label_image_pub.publish(label_image_msg)
 
         label_image_compressed_msg = self.cv_bridge.cv2_to_compressed_imgmsg(labels)
         label_image_compressed_msg.header = header
