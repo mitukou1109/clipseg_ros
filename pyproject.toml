@@ -1,0 +1,23 @@
+[project]
+name = "clipseg-ros"
+version = "0.1.0"
+description = "ROS 2 wrapper for CLIPSeg"
+readme = "README.md"
+authors = [
+    { name = "mitukou1109", email = "mitukou1109@gmail.com" }
+]
+requires-python = "==3.10.*"
+dependencies = [
+    "numpy<2",
+    "opencv-python",
+    "torch",
+    "torchvision",
+    "transformers",
+]
+
+[project.scripts]
+segmentation_node = "clipseg_ros.segmentation:main"
+
+[build-system]
+requires = ["uv_build>=0.10.7,<0.11.0"]
+build-backend = "uv_build"

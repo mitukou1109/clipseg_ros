@@ -22,9 +22,11 @@ class Segmentation(rclpy.node.Node):
     class Result:
         def __init__(
             self,
+            header: std_msgs.msg.Header,
             labels: npt.NDArray[np.uint8],
             source_image: npt.NDArray[np.uint8],
         ):
+            self.header = header
             self.labels = labels
             self.source_image = source_image
 
@@ -91,6 +93,11 @@ class Segmentation(rclpy.node.Node):
         self.label_image_compressed_pub = self.create_publisher(
             sensor_msgs.msg.CompressedImage,
             "~/label_image/compressed",
+            1,
+        )
+        self.result_image_compressed_pub = self.create_publisher(
+            sensor_msgs.msg.CompressedImage,
+            "~/result_image/compressed",
             1,
         )
 
@@ -165,9 +172,11 @@ class Segmentation(rclpy.node.Node):
             cv2.COLOR_RGB2BGR,
         )
 
-        cv2.namedWindow(self.get_name(), cv2.WINDOW_NORMAL)
-        cv2.imshow(self.get_name(), result_image)
-        cv2.waitKey(1)
+        result_image_compressed_msg = self.cv_bridge.cv2_to_compressed_imgmsg(
+            result_image
+        )
+        result_image_compressed_msg.header = result.header
+        self.result_image_compressed_pub.publish(result_image_compressed_msg)
 
     def run_segmentation(
         self, source_image: npt.NDArray[np.uint8], header: std_msgs.msg.Header
@@ -245,7 +254,7 @@ class Segmentation(rclpy.node.Node):
         self.label_image_compressed_pub.publish(label_image_compressed_msg)
 
         with self.result_lock:
-            self.result = Segmentation.Result(labels, source_image)
+            self.result = Segmentation.Result(header, labels, source_image)
 
     def pad_image_to_square(
         self, source_image: npt.NDArray[np.uint8]
