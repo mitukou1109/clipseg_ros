@@ -80,6 +80,8 @@ class Segmentation(rclpy.node.Node):
             .double_value
         )
 
+        self.add_on_set_parameters_callback(self.on_set_parameters_callback)
+
         self.device = torch.device(
             "cuda" if use_gpu and torch.cuda.is_available() else "cpu"
         )
@@ -127,6 +129,22 @@ class Segmentation(rclpy.node.Node):
             self.visualize_result_callback,
             rclpy.callback_groups.MutuallyExclusiveCallbackGroup(),
         )
+
+    def on_set_parameters_callback(self, params: list[rclpy.parameter.Parameter]):
+        for param in params:
+            if param.name == "class_prompts":
+                self.class_prompts = list(
+                    param.get_parameter_value().string_array_value
+                )
+            elif param.name == "class_colors":
+                self.class_colors = ast.literal_eval(
+                    param.get_parameter_value().string_value
+                )
+            elif param.name == "score_threshold":
+                self.score_threshold = param.get_parameter_value().double_value
+            elif param.name == "enable_padding":
+                self.enable_padding = param.get_parameter_value().bool_value
+        return rclpy.node.SetParametersResult(successful=True)
 
     def image_raw_compressed_callback(self, msg: sensor_msgs.msg.CompressedImage):
         if not msg.data:
