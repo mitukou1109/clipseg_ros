@@ -43,10 +43,16 @@ class Segmentation(rclpy.node.Node):
             .get_parameter_value()
             .string_value
         )
-        self.class_prompts = ast.literal_eval(
-            self.declare_parameter("class_prompts", "[]")
+        self.class_prompts = list(
+            self.declare_parameter(
+                "class_prompts",
+                rclpy.Parameter.Type.STRING_ARRAY,
+                descriptor=rclpy.node.ParameterDescriptor(
+                    type=rclpy.node.ParameterType.PARAMETER_STRING_ARRAY
+                ),
+            )
             .get_parameter_value()
-            .string_value
+            .string_array_value
         )
         self.class_colors = ast.literal_eval(
             self.declare_parameter("class_colors", "[]")
@@ -139,14 +145,6 @@ class Segmentation(rclpy.node.Node):
         self.run_segmentation(source_image, msg.header)
 
     def visualize_result_callback(self):
-        try:
-            self.class_colors = ast.literal_eval(
-                self.get_parameter("class_colors").get_parameter_value().string_value
-            )
-        except Exception as e:
-            self.get_logger().error(f"Parameter class_colors has invalid format: {e}")
-            return
-
         if len(self.class_colors) != len(self.class_prompts):
             self.get_logger().error(
                 "Parameter class_colors must have the same length as class_prompts"
@@ -181,20 +179,6 @@ class Segmentation(rclpy.node.Node):
     def run_segmentation(
         self, source_image: npt.NDArray[np.uint8], header: std_msgs.msg.Header
     ):
-        try:
-            self.class_prompts = ast.literal_eval(
-                self.get_parameter("class_prompts").get_parameter_value().string_value
-            )
-            self.score_threshold = (
-                self.get_parameter("score_threshold").get_parameter_value().double_value
-            )
-            self.enable_padding = (
-                self.get_parameter("enable_padding").get_parameter_value().bool_value
-            )
-        except Exception as e:
-            self.get_logger().error(f"Parameter has invalid format: {e}")
-            return
-
         if not self.class_prompts:
             self.get_logger().warn("No class prompts provided")
             return

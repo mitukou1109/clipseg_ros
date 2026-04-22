@@ -1,7 +1,7 @@
 /**:
   ros__parameters:
     use_gpu: true
-    class_prompts: "['tall grass']"
+    class_prompts: ["tall grass"]
     class_colors: "[[255, 0, 0]]"
     score_threshold: 0.1
     enable_padding: false
